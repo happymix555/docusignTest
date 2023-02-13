@@ -2,6 +2,7 @@ from docusign_esign import ApiClient, EnvelopesApi, EnvelopeDefinition, Document
 from os import path
 import webbrowser
 from docusign_esign.client.api_exception import ApiException
+import base64
 
 def get_jwt_token( private_key, scopes, auth_server, client_id, impersonated_user_id ):
     """Get the jwt token"""
@@ -42,26 +43,57 @@ def make_envelope( configDict ):
 
         # create the envelope definition
         envelope_definition = EnvelopeDefinition(
-            status = "sent",  # requests that the envelope be created and sent.
-            template_id = configDict[ 'templateId' ]
+            email_subject="Please sign this Yannix project sheet."
         )
+
+        # open the document to send with this envelope
+        with open( configDict[ 'documentFilePath' ], "rb" ) as file:
+            yannixProjectSheetFileByte = file.read()
+            yannixProjectSheetBase64 = base64.b64encode( yannixProjectSheetFileByte ).decode( 'ascii' )
+
+        # create document object from base64 file format.
+        yannixProjectSheetDocument = Document(  # create the DocuSign document object
+		document_base64 = yannixProjectSheetBase64,
+		name = 'yannix project sheet file name',  # can be different from actual file name
+		file_extension = 'pdf',  # many different document types are accepted
+		document_id = '1'  # a label used to reference the doc
+        )
+
+        # add document object to envelope definition object
+        envelope_definition.documents = [ yannixProjectSheetDocument ]
 
         # Create template role elements to connect the signer and cc recipients
         # to the template
-        signer = TemplateRole(
-            email = configDict["signerEmail"],
-            name=configDict["signerName"],
-            role_name="signer"
-        )
-        # Create a cc template role.
-        cc = TemplateRole(
-            email=configDict["ccEmail"],
-            name=configDict["ccName"],
-            role_name="cc"
+        # signer = TemplateRole(
+        #     email = configDict["signerEmail"],
+        #     name=configDict["signerName"],
+        #     role_name="signer"
+        # )
+        signer = Signer( email = configDict[ 'signerEmail' ], 
+                        name = configDict[ 'signerName' ],
+                        role_name = "signer", 
+                        recipient_id="1",
+                        ) 
+
+        # specified sign here tab location for signer using anchor tagging
+        # and a DocuSign SignHere field/tab
+        signHere = SignHere(
+            anchor_string = configDict[ 'signHereAnchorStringTag' ], anchor_units = 'pixels',
+            anchor_y_offset = '20', anchor_x_offset = '20', anchor_ignore_if_not_present = False
         )
 
-        # Add the TemplateRole objects to the envelope object
-        envelope_definition.template_roles = [signer, cc]
+        # Add the tabs model (including the sign_here tabs) to the signer
+        # The Tabs object wants arrays of the different field/tab types
+        signer.tabs = Tabs( sign_here_tabs=[ signHere ] )
+
+        # Add the recipients to the envelope object
+        recipients = Recipients( signers = [ signer ] )
+        envelope_definition.recipients = recipients
+
+        # Request that the envelope be sent by setting |status| to "sent".
+        # To request that the envelope be created as a draft, set to "created"
+        envelope_definition.status = configDict["status"]
+
         return envelope_definition
 
 def create_api_client(base_path, access_token):
@@ -105,6 +137,11 @@ configDict = {
     'ccEmail': 'happymix2555@gmail.com',
     'ccName': 'Happymix',
     'accessToken': '',
+    'signHereAnchorStringTag': 'CLIENT AUTHORIZED SIGNATURE',
+    'printNameAnchorStringTag': 'PRINT NAME',
+    'dateSAnchorStringTag': 'DATE',
+    'documentFilePath': 'yannixProjectSheet.pdf',
+    'status': 'sent'
 }
 
 # get private key from '.key' file  path
@@ -134,4 +171,5 @@ except ApiException as err:
 configDict[ 'accessToken' ] = dsApp.to_dict()[ 'access_token' ]
 print( dsApp )
 
+# send document to recipients by email.
 resultOfWorker = worker( configDict )
