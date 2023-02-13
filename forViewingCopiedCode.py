@@ -290,3 +290,20 @@ def create_document1(cls, args):
 		</body>
 	</html>
   """
+
+
+# You need to obtain an access token using your chosen authentication flow 
+api_client = ApiClient()
+api_client.host = base_path
+api_client.set_default_header('Authorization', 'Bearer ' + access_token)
+envelopes_api = EnvelopesApi(api_client)
+prefill_tabs = PrefillTabs()
+text_tab1 =Text()
+text_tab1.page_number = '1'
+text_tab1.document_id = '1'
+text_tab1.value = 'MyValue'
+prefill_tabs.text_tabs = []
+prefill_tabs.text_tabs.insert(text_tab1)
+tabs = Tabs()
+tabs.prefill_tabs = prefill_tabs
+envelopes_api.create_document_tabs(account_id, '1', envelope_id, tabs=tabs)

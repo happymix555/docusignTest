@@ -1,4 +1,4 @@
-from docusign_esign import ApiClient, EnvelopesApi, EnvelopeDefinition, Document, Signer, CarbonCopy, SignHere, Tabs, Recipients, TemplateRole
+from docusign_esign import ApiClient, EnvelopesApi, EnvelopeDefinition, Document, Signer, CarbonCopy, SignHere, Tabs, Recipients, PrefillTabs, Text
 from os import path
 import webbrowser
 from docusign_esign.client.api_exception import ApiException
@@ -92,7 +92,7 @@ def make_envelope( configDict ):
 
         # Request that the envelope be sent by setting |status| to "sent".
         # To request that the envelope be created as a draft, set to "created"
-        envelope_definition.status = configDict["status"]
+        envelope_definition.status = configDict[ 'status' ]
 
         return envelope_definition
 
@@ -103,6 +103,38 @@ def create_api_client(base_path, access_token):
     api_client.set_default_header(header_name="Authorization", header_value=f"Bearer {access_token}")
 
     return api_client
+
+def fillAllPrefillTabs():
+    ''' This function is used for filling all of the necessary information before sending sheet to customer.
+
+        RETURN: tabs object with prefilled tabs.
+    '''
+
+    # create prefilled tabs to provide necessary information for the client.
+    prefill_tabs = PrefillTabs()
+
+    # define client location prefilled tab information.
+    clientLocationTab = Text(
+            page_number = '1',
+            document_id = '1',
+            value = 'client location',
+            anchor_string = 'CLIENT/LOCATION',
+            anchor_units = 'pixels',
+            anchor_y_offset = '20', 
+            anchor_x_offset = '20', 
+            anchor_ignore_if_not_present = False
+    )
+
+    # add client location prefilled tab to prefill tab object
+    prefill_tabs.text_tabs = [ clientLocationTab ]
+
+    # create tabs object of this envelope
+    tabs = Tabs()
+
+    # set value of prefilled tabs 
+    tabs.prefill_tabs = prefill_tabs
+
+    return tabs
 
 def worker( configDict ):
         """
@@ -120,6 +152,11 @@ def worker( configDict ):
         envelope_api = EnvelopesApi(api_client)
         results = envelope_api.create_envelope(account_id=configDict[ 'ApiAccountId' ], envelope_definition=envelope_definition)
         envelope_id = results.envelope_id
+
+        # get and attach all prefill tabs for this envelope
+        tabs = fillAllPrefillTabs()
+        envelope_api.create_document_tabs( configDict[ 'ApiAccountId' ], '1', envelope_id, tabs = tabs )
+        
         return {"envelope_id": envelope_id}
 
 # define configuration dictionary
